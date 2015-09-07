@@ -1,6 +1,13 @@
 Tasks = new Mongo.Collection('tasks');
+if (Meteor.isServer){
+  // This code only runs on the server
+  Meteor.publish("tasks", function () {
+    return Tasks.find();
+  });
+}
 if (Meteor.isClient) {
   // This code only runs on the client
+  Meteor.subscribe("tasks");
   Template.body.helpers({
     tasks: function () {
       // Show newest tasks at the top
@@ -21,6 +28,7 @@ if (Meteor.isClient) {
       // Get value from form element
       var text = event.target.text.value;
 
+      Meteor.call("addTask", text);
       // Insert a task into the collection
       Tasks.insert({
         text: text,
@@ -38,15 +46,35 @@ if (Meteor.isClient) {
   });
   Template.task.events({
     "click .toggle-checked": function () {
-      Tasks.update(this._id, {
-        $set: {checked: ! this.checked}
-      });
+      // Set the checked property to the opposite of its current value
+      Meteor.call("setChecked", this._id, ! this.checked);
     },
     "click .delete": function () {
-      Tasks.remove(this._id);
+      Meteor.call("deleteTask", this._id);
     }
   });
   Accounts.ui.config({
     passwordSignupFields: "USERNAME_ONLY"
   });
 }
+
+Meteor.methods({
+  addTask: function (text) {
+    //make sure the user is logged in
+    if (! Meteor.userId()) {
+      throw new Meteor.Error("not-authorized");
+    }
+    Tasks.insert({
+      text: text,
+      createdAt: new Date(),
+      owner: Meteor.userId(),
+      username: Meteor.user().username
+    });
+  },
+  deleteTask: function (taskId) {
+    Tasks.remove(taskId);
+  },
+  setChecked: function (taskId, setChecked) {
+     Tasks.update(taskId, { $set: { checked: setChecked} });
+  }
+});
